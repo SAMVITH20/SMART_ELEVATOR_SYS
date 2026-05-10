@@ -1,0 +1,3 @@
+run_id,episodes,average_reward,learning_rate,epsilon
+exp1,500,55.304,0.1,0.2
+exp2,500,24.252,0.3,0.05
