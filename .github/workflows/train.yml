@@ -26,3 +26,12 @@ jobs:
     - name: Run QLearning
 
       run: python train.py configs/qlearning_v1.yaml
+
+    - name: Upload Graphs
+
+      uses: actions/upload-artifact@v4
+
+      with:
+        name: training-plots
+
+        path: plots/
