@@ -1,3 +1,6 @@
 run_id,episodes,average_reward,learning_rate,epsilon
 exp1,500,55.304,0.1,0.2
 exp2,500,24.252,0.3,0.05
+exp1,qlearning,500,55.844,0.1,0.2
+exp2,qlearning,500,30.52,0.3,0.05
+sarsa,sarsa,500,38.152,0.1,0.1
