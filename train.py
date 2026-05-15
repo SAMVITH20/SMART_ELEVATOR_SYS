@@ -1,21 +1,29 @@
-import numpy as np
-import random
 import yaml
-import pandas as pd
-import matplotlib.pyplot as plt
 import sys
 import os
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import mlflow
 
 from sim.elevator_env import ElevatorEnv
 
-# ---------------------------------------
+from models.qlearning import train_qlearning
+from models.sarsa import train_sarsa
+
+# --------------------------------------
 # LOAD CONFIG
-# ---------------------------------------
+# --------------------------------------
 
 config_path = sys.argv[1]
 
 with open(config_path, "r") as file:
     config = yaml.safe_load(file)
+
+algorithm = config.get(
+    "algorithm",
+    "qlearning"
+)
 
 NUM_FLOORS = config["num_floors"]
 
@@ -27,79 +35,51 @@ EPSILON = config["epsilon"]
 
 EPISODES = config["episodes"]
 
-# ---------------------------------------
-# EXPERIMENT NAME
-# ---------------------------------------
-
-if "v1" in config_path:
-    EXP_NAME = "exp1"
-else:
-    EXP_NAME = "exp2"
-
-# ---------------------------------------
-# CREATE ENVIRONMENT
-# ---------------------------------------
+# --------------------------------------
+# ENVIRONMENT
+# --------------------------------------
 
 env = ElevatorEnv(NUM_FLOORS)
 
-actions = [0, 1, 2]
+# --------------------------------------
+# TRAIN MODEL
+# --------------------------------------
 
-q_table = np.zeros((NUM_FLOORS, len(actions)))
+if algorithm == "sarsa":
 
-episode_rewards = []
+    q_table, rewards = train_sarsa(
+        env,
+        EPISODES,
+        ALPHA,
+        GAMMA,
+        EPSILON
+    )
 
-# ---------------------------------------
-# TRAINING
-# ---------------------------------------
+    EXP_NAME = "sarsa"
 
-for episode in range(EPISODES):
+else:
 
-    state = env.reset()
+    q_table, rewards = train_qlearning(
+        env,
+        EPISODES,
+        ALPHA,
+        GAMMA,
+        EPSILON
+    )
 
-    done = False
+    if "v1" in config_path:
+        EXP_NAME = "exp1"
+    else:
+        EXP_NAME = "exp2"
 
-    total_reward = 0
-
-    while not done:
-
-        # Epsilon Greedy
-
-        if random.uniform(0, 1) < EPSILON:
-            action = random.choice(actions)
-
-        else:
-            action = np.argmax(q_table[state])
-
-        next_state, reward, done = env.step(action)
-
-        # Q-Learning Update
-
-        old_value = q_table[state, action]
-
-        next_max = np.max(q_table[next_state])
-
-        new_value = old_value + ALPHA * (
-            reward +
-            GAMMA * next_max -
-            old_value
-        )
-
-        q_table[state, action] = new_value
-
-        state = next_state
-
-        total_reward += reward
-
-    episode_rewards.append(total_reward)
-
-# ---------------------------------------
+# --------------------------------------
 # SAVE RESULTS
-# ---------------------------------------
+# --------------------------------------
 
 results = pd.DataFrame({
 
     "episode": list(range(EPISODES)),
-    "reward": episode_rewards
+    "reward": rewards
 
 })
 
@@ -108,16 +88,22 @@ results.to_csv(
     index=False
 )
 
-# ---------------------------------------
+# --------------------------------------
 # SAVE SUMMARY
-# ---------------------------------------
+# --------------------------------------
 
 summary = pd.DataFrame([{
 
     "run_id": EXP_NAME,
+
+    "algorithm": algorithm,
+
     "episodes": EPISODES,
-    "average_reward": np.mean(episode_rewards),
+
+    "average_reward": np.mean(rewards),
+
     "learning_rate": ALPHA,
+
     "epsilon": EPSILON
 
 }])
@@ -135,21 +121,49 @@ summary.to_csv(
     index=False
 )
 
-# ---------------------------------------
+# --------------------------------------
+# MLFLOW TRACKING
+# --------------------------------------
+
+mlflow.set_experiment(
+    "Smart Elevator RL"
+)
+
+with mlflow.start_run():
+
+    mlflow.log_param(
+        "algorithm",
+        algorithm
+    )
+
+    mlflow.log_param(
+        "learning_rate",
+        ALPHA
+    )
+
+    mlflow.log_param(
+        "epsilon",
+        EPSILON
+    )
+
+    mlflow.log_metric(
+        "average_reward",
+        np.mean(rewards)
+    )
+
+# --------------------------------------
 # PLOT GRAPH
-# ---------------------------------------
+# --------------------------------------
 
 plt.figure(figsize=(10, 5))
 
-plt.plot(episode_rewards)
+plt.plot(rewards)
 
 plt.xlabel("Episodes")
 
 plt.ylabel("Reward")
 
-plt.title(
-    f"Q-Learning Performance ({EXP_NAME})"
-)
+plt.title(f"{EXP_NAME} Performance")
 
 plt.grid(True)
 
@@ -157,18 +171,6 @@ plt.savefig(
     f"plots/{EXP_NAME}_plot.png"
 )
 
-plt.show()
+plt.close()
 
-# ---------------------------------------
-# FINAL OUTPUT
-# ---------------------------------------
-
-print(f"\n{EXP_NAME} completed!")
-
-print("\nAverage Reward:")
-
-print(np.mean(episode_rewards))
-
-print("\nQ Table:\n")
-
-print(q_table)
+print(f"{EXP_NAME} completed!")

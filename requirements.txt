@@ -2,3 +2,6 @@ numpy
 matplotlib
 pandas
 pyyaml
+mlflow
+fastapi
+uvicorn
